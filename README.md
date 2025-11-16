@@ -6,6 +6,7 @@ A simple headless flat file CMS powered by JSON and JavaScript. Perfect for powe
 
 - **Flat File Storage**: Content stored as JSON files, organized by type
 - **JSON Schema Validation**: Validate content structure using standard JSON Schema
+- **Field Uniqueness**: Enforce unique values for specific fields (e.g., slugs)
 - **REST API**: Full CRUD operations via REST endpoints
 - **Query & Filtering**: Advanced query system with filtering, sorting, and search
 - **Pagination**: Built-in pagination support for large content sets
@@ -65,7 +66,7 @@ Define your content types using JSON Schema:
       "type": "object",
       "properties": {
         "title": { "type": "string" },
-        "slug": { "type": "string" },
+        "slug": { "type": "string", "unique": true },
         "body": { "type": "string" },
         "status": { "type": "string", "enum": ["draft", "published", "archived"] }
       },
@@ -74,6 +75,8 @@ Define your content types using JSON Schema:
   }
 }
 ```
+
+**Field Uniqueness**: Add `"unique": true` to any field property to enforce uniqueness across all content items of that type. For example, the `slug` field in the `page` type above ensures that no two pages can have the same slug. Uniqueness validation is case-insensitive for string fields (e.g., "MySlug" and "myslug" are considered duplicates).
 
 ### 3. Start the server
 
@@ -236,7 +239,7 @@ curl -H "Authorization: Bearer your-api-key" \
 
 #### Create Content
 
-Create a new content item.
+Create a new content item. The content will be validated against the schema, and uniqueness constraints will be checked for fields marked as `unique: true` in the schema.
 
 ```http
 POST /api/content/:type
@@ -265,9 +268,24 @@ curl -X POST \
 }
 ```
 
+**Error Response:** (409 Conflict) - If a unique field value already exists:
+```json
+{
+  "error": "Uniqueness validation failed",
+  "details": [
+    {
+      "message": "Field 'slug' must be unique. A page with slug='my-page' already exists.",
+      "path": "/slug",
+      "field": "slug",
+      "value": "my-page"
+    }
+  ]
+}
+```
+
 #### Update Content
 
-Update an existing content item. Automatically creates a version snapshot before updating.
+Update an existing content item. Automatically creates a version snapshot before updating. Uniqueness constraints are validated (excluding the current item).
 
 ```http
 PUT /api/content/:type/:id
@@ -293,6 +311,21 @@ curl -X PUT \
   "publishedAt": "2024-01-01T00:00:00.000Z",
   "createdAt": "2024-01-01T00:00:00.000Z",
   "updatedAt": "2024-01-02T00:00:00.000Z"
+}
+```
+
+**Error Response:** (409 Conflict) - If updating would violate a uniqueness constraint:
+```json
+{
+  "error": "Uniqueness validation failed",
+  "details": [
+    {
+      "message": "Field 'slug' must be unique. A page with slug='existing-slug' already exists.",
+      "path": "/slug",
+      "field": "slug",
+      "value": "existing-slug"
+    }
+  ]
 }
 ```
 
@@ -560,7 +593,7 @@ Common status codes:
 - `400`: Bad Request (validation errors)
 - `401`: Unauthorized (invalid or missing API key)
 - `404`: Not Found (content item doesn't exist)
-- `409`: Conflict (content with ID already exists)
+- `409`: Conflict (content with ID already exists, or uniqueness constraint violation)
 - `500`: Internal Server Error
 
 ## Programmatic Usage
