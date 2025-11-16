@@ -18,7 +18,9 @@ app.use('/api', (req, res, next) => {
   
   // If PUBLIC_GET_ENABLED is true, allow GET requests without auth
   // All write operations (POST, PUT, DELETE) always require auth
-  if (config.publicGetEnabled && req.method === 'GET') {
+  // Normalize method to uppercase to ensure consistent comparison
+  const method = req.method.toUpperCase();
+  if (config.publicGetEnabled && method === 'GET') {
     return next();
   }
   

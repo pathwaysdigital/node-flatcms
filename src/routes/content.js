@@ -75,6 +75,15 @@ router.post('/:type', express.json(), async (req, res) => {
       });
     }
     
+    // Validate uniqueness of unique fields
+    const uniquenessValidation = await validator.validateUniqueness(type, data);
+    if (!uniquenessValidation.valid) {
+      return res.status(409).json({
+        error: 'Uniqueness validation failed',
+        details: uniquenessValidation.errors
+      });
+    }
+    
     // Create content
     const content = await fileHandler.createContent(type, data);
     res.status(201).json(content);
@@ -120,6 +129,15 @@ router.put('/:type/:id', express.json(), async (req, res) => {
       return res.status(400).json({
         error: 'Validation failed',
         details: validation.errors
+      });
+    }
+    
+    // Validate uniqueness of unique fields (exclude current item)
+    const uniquenessValidation = await validator.validateUniqueness(type, mergedData, id);
+    if (!uniquenessValidation.valid) {
+      return res.status(409).json({
+        error: 'Uniqueness validation failed',
+        details: uniquenessValidation.errors
       });
     }
     
