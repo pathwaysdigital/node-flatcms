@@ -27,7 +27,11 @@
     "file-based",
     "schema"
   ],
-  "author": "",
+  "author": {
+    "name": "pathways digital SL",
+    "email": "hola@pathways-digital.com",
+    "url": "https://pathways-digital.com"
+  },
   "license": "ISC",
   "type": "commonjs",
   "engines": {
