@@ -2,16 +2,27 @@ const express = require('express');
 const router = express.Router();
 const fileHandler = require('../utils/fileHandler');
 const validator = require('../utils/validator');
+const { parseQuery } = require('../utils/queryParser');
+const versionHandler = require('../utils/versionHandler');
 
 /**
  * GET /api/content/:type
  * List all content items of a specific type
+ * 
+ * Query parameters:
+ * - filter: ?field=value (equality), ?field__gt=10, ?field__lt=20, ?field__gte=5, ?field__lte=15, ?field__ne=value
+ * - array: ?field__in=value1,value2,value3
+ * - search: ?search=text (searches across string fields)
+ * - status: ?status=published|draft|archived
+ * - sort: ?sort=field or ?sort=-field (descending)
+ * - pagination: ?limit=10&offset=0
  */
 router.get('/:type', async (req, res) => {
   try {
     const { type } = req.params;
-    const contents = await fileHandler.listContent(type);
-    res.json(contents);
+    const queryOptions = parseQuery(req.query);
+    const result = await fileHandler.listContent(type, queryOptions);
+    res.json(result);
   } catch (error) {
     console.error('Error listing content:', error);
     res.status(500).json({
@@ -146,6 +157,145 @@ router.delete('/:type/:id', async (req, res) => {
     console.error('Error deleting content:', error);
     res.status(500).json({
       error: 'Failed to delete content',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/content/:type/:id/versions
+ * List all versions for a content item
+ */
+router.get('/:type/:id/versions', async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    
+    // Check if content exists
+    const content = await fileHandler.getContent(type, id);
+    if (!content) {
+      return res.status(404).json({
+        error: `Content item not found: ${type}/${id}`
+      });
+    }
+    
+    const versions = await versionHandler.listVersions(type, id);
+    res.json(versions);
+  } catch (error) {
+    console.error('Error listing versions:', error);
+    res.status(500).json({
+      error: 'Failed to list versions',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/content/:type/:id/versions/:versionId
+ * Get a specific version by versionId
+ */
+router.get('/:type/:id/versions/:versionId', async (req, res) => {
+  try {
+    const { type, id, versionId } = req.params;
+    
+    // Check if content exists
+    const content = await fileHandler.getContent(type, id);
+    if (!content) {
+      return res.status(404).json({
+        error: `Content item not found: ${type}/${id}`
+      });
+    }
+    
+    const version = await versionHandler.getVersion(type, id, versionId);
+    if (!version) {
+      return res.status(404).json({
+        error: `Version not found: ${versionId}`
+      });
+    }
+    
+    res.json(version);
+  } catch (error) {
+    console.error('Error getting version:', error);
+    res.status(500).json({
+      error: 'Failed to get version',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/content/:type/:id/restore/:versionId
+ * Restore a content item to a previous version
+ */
+router.post('/:type/:id/restore/:versionId', async (req, res) => {
+  try {
+    const { type, id, versionId } = req.params;
+    
+    // Check if content exists
+    const content = await fileHandler.getContent(type, id);
+    if (!content) {
+      return res.status(404).json({
+        error: `Content item not found: ${type}/${id}`
+      });
+    }
+    
+    // Get the version to restore
+    const version = await versionHandler.getVersion(type, id, versionId);
+    if (!version) {
+      return res.status(404).json({
+        error: `Version not found: ${versionId}`
+      });
+    }
+    
+    // Remove version-specific fields before restoring
+    const { versionId: _, versionedAt: __, ...restoredData } = version;
+    
+    // Restore the content (this will create a new version of the current state)
+    const restored = await fileHandler.updateContent(type, id, restoredData);
+    
+    res.json({
+      message: `Content item ${type}/${id} restored to version ${versionId}`,
+      content: restored
+    });
+  } catch (error) {
+    console.error('Error restoring version:', error);
+    res.status(500).json({
+      error: 'Failed to restore version',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/content/:type/:id/related
+ * Get related content items (by tags, categories, or relations)
+ * 
+ * Query parameters:
+ * - limit: Maximum number of related items to return
+ * - offset: Offset for pagination
+ */
+router.get('/:type/:id/related', async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const queryOptions = parseQuery(req.query);
+    
+    // Check if content exists
+    const content = await fileHandler.getContent(type, id);
+    if (!content) {
+      return res.status(404).json({
+        error: `Content item not found: ${type}/${id}`
+      });
+    }
+    
+    const result = await fileHandler.getRelatedContent(type, id, {
+      limit: queryOptions.limit,
+      offset: queryOptions.offset
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting related content:', error);
+    res.status(500).json({
+      error: 'Failed to get related content',
       message: error.message
     });
   }

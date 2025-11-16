@@ -2,6 +2,7 @@ const express = require('express');
 const config = require('./config');
 const authMiddleware = require('./middleware/auth');
 const contentRoutes = require('./routes/content');
+const mediaRoutes = require('./routes/media');
 
 const app = express();
 
@@ -9,10 +10,25 @@ const app = express();
 app.use(express.json());
 
 // Apply authentication middleware to all API routes
-app.use('/api', authMiddleware);
+app.use('/api', (req, res, next) => {
+  // Allow public access to media file serving endpoint
+  if (req.path.startsWith('/media/') && req.path.endsWith('/file')) {
+    return next();
+  }
+  
+  // If PUBLIC_GET_ENABLED is true, allow GET requests without auth
+  // All write operations (POST, PUT, DELETE) always require auth
+  if (config.publicGetEnabled && req.method === 'GET') {
+    return next();
+  }
+  
+  // All other requests require authentication
+  authMiddleware(req, res, next);
+});
 
 // Routes
 app.use('/api/content', contentRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Health check endpoint (no auth required)
 app.get('/health', (req, res) => {
