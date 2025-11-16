@@ -1,0 +1,51 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Content and data directories
+content/
+*.json
+!package.json
+
+# Development files
+.git/
+.gitignore
+.cursor/
+.vscode/
+.idea/
+*.log
+*.swp
+*.swo
+*~
+
+# Testing
+test/
+tests/
+*.test.js
+*.spec.js
+coverage/
+
+# Documentation (optional - keep README)
+# docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
