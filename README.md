@@ -137,6 +137,28 @@ Environment variables:
 - CRUD actions use the existing REST endpoints; the UI simply orchestrates them. You still get schema validation, uniqueness enforcement, versioning, and everything else provided by the API.
 - The dashboard is intentionally simple—pure HTML/JS/CSS—so you can customize it or embed it elsewhere if needed. Feel free to drop additional static assets into `public/` and serve them alongside the admin.
 
+### Richtext fields
+
+Add `"type": "richtext"` to any property in your schema to render a lightweight WYSIWYG editor in the admin UI. The editor includes the usual basics (bold, italic, underline, unordered/ordered lists) and stores the resulting HTML alongside your other fields. Example:
+
+```json
+{
+  "definitions": {
+    "page": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string", "unique": true },
+        "body": { "type": "richtext" }
+      },
+      "required": ["title", "slug"]
+    }
+  }
+}
+```
+
+If the field is required, keep `"body"` inside the `required` array—the admin form will enforce it. Clearing the editor will send an empty string, so updates can remove content if needed.
+
 ## Content Storage
 
 Content is stored as JSON files in the following structure:

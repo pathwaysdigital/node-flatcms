@@ -17,7 +17,8 @@ const state = {
   },
   currentItem: null,
   searchDebounce: null,
-  editingCredentials: false
+  editingCredentials: false,
+  richtextEditors: {}
 };
 
 function $(selector) {
@@ -230,6 +231,7 @@ function renderDynamicFields() {
     return;
   }
 
+  state.richtextEditors = {};
   const container = document.createElement('div');
   for (const [fieldName, schema] of Object.entries(type.properties || {})) {
     if (['id', 'createdAt', 'updatedAt', 'status', 'publishedAt'].includes(fieldName)) {
@@ -248,10 +250,16 @@ function renderDynamicFields() {
       label.appendChild(hint);
     }
 
-    const input = createInputForSchema(fieldName, schema);
-    if ((type.required || []).includes(fieldName)) {
-      input.required = true;
+    let input;
+    if (schema.type === 'richtext') {
+      input = createRichtextField(fieldName);
+    } else {
+      input = createInputForSchema(fieldName, schema);
+      if ((type.required || []).includes(fieldName)) {
+        input.required = true;
+      }
     }
+
     wrapper.appendChild(label);
     wrapper.appendChild(input);
     container.appendChild(wrapper);
@@ -259,6 +267,93 @@ function renderDynamicFields() {
 
   elements.dynamicFields.innerHTML = '';
   elements.dynamicFields.appendChild(container);
+}
+
+function createRichtextField(fieldName) {
+  const fieldId = `richtext-${fieldName}`;
+  const container = document.createElement('div');
+  container.className = 'richtext-field';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'richtext-toolbar';
+
+  const buttons = [
+    { command: 'bold', label: 'B' },
+    { command: 'italic', label: 'I' },
+    { command: 'underline', label: 'U' },
+    { command: 'insertUnorderedList', label: '• List' },
+    { command: 'insertOrderedList', label: '1. List' }
+  ];
+
+  buttons.forEach(({ command, label }) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.command = command;
+    button.textContent = label;
+    button.ariaPressed = 'false';
+    toolbar.appendChild(button);
+  });
+
+  const editor = document.createElement('div');
+  editor.className = 'richtext-editor';
+  editor.contentEditable = 'true';
+  editor.id = fieldId;
+  editor.dataset.fieldName = fieldName;
+
+  const hiddenInput = document.createElement('textarea');
+  hiddenInput.name = fieldName;
+  hiddenInput.className = 'richtext-hidden-input';
+  hiddenInput.hidden = true;
+
+  editor.addEventListener('input', () => {
+    hiddenInput.value = editor.innerHTML.trim();
+  });
+
+  toolbar.addEventListener('click', event => {
+    const button = event.target.closest('button[data-command]');
+    if (!button) {
+      return;
+    }
+    event.preventDefault();
+    editor.focus();
+    document.execCommand(button.dataset.command, false);
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    updateToolbarState();
+  });
+
+  function updateToolbarState() {
+    buttons.forEach(({ command }, index) => {
+      const button = toolbar.children[index];
+      if (!button) return;
+      const active = document.queryCommandState(command);
+      button.classList.toggle('active', !!active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  editor.addEventListener('keyup', updateToolbarState);
+  editor.addEventListener('mouseup', updateToolbarState);
+  editor.addEventListener('focus', updateToolbarState);
+  updateToolbarState();
+
+  container.appendChild(toolbar);
+  container.appendChild(editor);
+  container.appendChild(hiddenInput);
+
+  state.richtextEditors[fieldName] = { editor, hiddenInput, updateToolbarState };
+  return container;
+}
+
+function getRichtextValue(fieldName) {
+  const richtext = state.richtextEditors[fieldName];
+  if (!richtext) return '';
+  const html = richtext.editor.innerHTML.trim();
+  const textContent = richtext.editor.textContent.replace(/\u00A0/g, '').trim();
+  const hasMedia = /<(img|video|iframe|embed|object)/i.test(html);
+  if (!textContent && !hasMedia) {
+    return '';
+  }
+  return html;
 }
 
 function createInputForSchema(fieldName, schema) {
@@ -404,8 +499,22 @@ function renderEditor(item) {
       continue;
     }
     const field = elements.contentForm.querySelector(`[name="${fieldName}"]`);
-    if (!field) continue;
+    const schema = type.properties?.[fieldName];
     const value = item?.[fieldName];
+
+    if (schema?.type === 'richtext') {
+      const richtext = state.richtextEditors[fieldName];
+      if (richtext) {
+        richtext.editor.innerHTML = value || '';
+        richtext.hiddenInput.value = value || '';
+        if (typeof richtext.updateToolbarState === 'function') {
+          richtext.updateToolbarState();
+        }
+      }
+      continue;
+    }
+
+    if (!field) continue;
     if (Array.isArray(value)) {
       field.value = value.join(', ');
     } else if (value === undefined || value === null) {
@@ -437,11 +546,17 @@ function collectFormData() {
       payload.status = value || 'draft';
       continue;
     }
+
+    const schema = type.properties?.[name];
+    if (schema?.type === 'richtext') {
+      payload[name] = getRichtextValue(name);
+      continue;
+    }
+
     if (!value) {
       continue;
     }
 
-    const schema = type.properties?.[name];
     payload[name] = coerceValue(value, schema);
   }
 

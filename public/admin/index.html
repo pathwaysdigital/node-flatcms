@@ -69,6 +69,40 @@
         color: var(--pico-danger-inverse);
       }
 
+      .richtext-field {
+        border: 1px solid var(--pico-muted-border-color);
+        border-radius: var(--pico-border-radius);
+        background: var(--pico-card-background-color);
+      }
+
+      .richtext-toolbar {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--pico-muted-border-color);
+      }
+
+      .richtext-toolbar button {
+        flex: 0 0 auto;
+        padding: 0.25rem 0.5rem;
+        font-weight: 600;
+      }
+
+      .richtext-toolbar button.active {
+        background: var(--pico-primary);
+        color: var(--pico-primary-inverse);
+      }
+
+      .richtext-editor {
+        min-height: 10rem;
+        padding: 0.75rem;
+        outline: none;
+      }
+
+      .richtext-editor:focus {
+        box-shadow: inset 0 0 0 2px var(--pico-primary-border);
+      }
+
       .hidden {
         display: none !important;
       }

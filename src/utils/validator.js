@@ -5,7 +5,49 @@ const config = require('../config');
 const fileHandler = require('./fileHandler');
 
 let schemaCache = null;
+let normalizedSchemaCache = null;
 let ajvInstance = null;
+
+function clone(value) {
+  if (Array.isArray(value)) {
+    return value.map(clone);
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).reduce((acc, [key, val]) => {
+      acc[key] = clone(val);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
+function normalizeType(type) {
+  if (typeof type === 'string') {
+    return type === 'richtext' ? 'string' : type;
+  }
+  if (Array.isArray(type)) {
+    return type.map(t => (t === 'richtext' ? 'string' : t));
+  }
+  return type;
+}
+
+function normalizeSchemaNode(node) {
+  if (Array.isArray(node)) {
+    return node.map(normalizeSchemaNode);
+  }
+  if (node && typeof node === 'object') {
+    const normalized = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'type') {
+        normalized[key] = normalizeType(value);
+      } else {
+        normalized[key] = normalizeSchemaNode(value);
+      }
+    }
+    return normalized;
+  }
+  return node;
+}
 
 /**
  * Load the schema file from disk
@@ -24,10 +66,26 @@ async function loadSchema() {
     }
     
     schemaCache = await fs.readJson(schemaPath);
+    normalizedSchemaCache = normalizeSchemaNode(schemaCache);
     return schemaCache;
   } catch (error) {
     throw new Error(`Failed to load schema file: ${error.message}`);
   }
+}
+
+function getNormalizedSchema() {
+  return normalizedSchemaCache || null;
+}
+
+function resolveSchemaDefinition(schema, type) {
+  if (!schema) return null;
+  if (schema.definitions && schema.definitions[type]) {
+    return schema.definitions[type];
+  }
+  if (schema[type]) {
+    return schema[type];
+  }
+  return null;
 }
 
 /**
@@ -39,12 +97,13 @@ async function getValidator() {
   }
   
   const schema = await loadSchema();
+  const normalizedSchema = getNormalizedSchema() || normalizeSchemaNode(schema);
   ajvInstance = new Ajv();
   
   // If schema has definitions, compile them
-  if (schema.definitions) {
-    Object.keys(schema.definitions).forEach(key => {
-      ajvInstance.addSchema(schema.definitions[key], `#/definitions/${key}`);
+  if (normalizedSchema.definitions) {
+    Object.keys(normalizedSchema.definitions).forEach(key => {
+      ajvInstance.addSchema(normalizedSchema.definitions[key], `#/definitions/${key}`);
     });
   }
   
@@ -60,11 +119,8 @@ async function getUniqueFields(type) {
   // Try to find schema definition for the content type
   let schemaDefinition = null;
   
-  if (schema.definitions && schema.definitions[type]) {
-    schemaDefinition = schema.definitions[type];
-  } else if (schema[type]) {
-    schemaDefinition = schema[type];
-  } else {
+  schemaDefinition = resolveSchemaDefinition(schema, type);
+  if (!schemaDefinition) {
     return [];
   }
   
@@ -149,17 +205,13 @@ async function validateUniqueness(type, data, excludeId = null) {
 async function validateContent(type, data) {
   const schema = await loadSchema();
   const ajv = await getValidator();
+  const normalizedSchema = getNormalizedSchema();
   
   // Try to find schema definition for the content type
-  let schemaDefinition = null;
-  
-  if (schema.definitions && schema.definitions[type]) {
-    // Use definition from definitions object
-    schemaDefinition = schema.definitions[type];
-  } else if (schema[type]) {
-    // Use direct property
-    schemaDefinition = schema[type];
-  } else {
+  const schemaDefinition = resolveSchemaDefinition(schema, type);
+  const normalizedDefinition = resolveSchemaDefinition(normalizedSchema, type);
+
+  if (!schemaDefinition) {
     return {
       valid: false,
       errors: [{ message: `No schema definition found for content type: ${type}` }]
@@ -167,7 +219,7 @@ async function validateContent(type, data) {
   }
   
   // Validate the data
-  const validate = ajv.compile(schemaDefinition);
+  const validate = ajv.compile(normalizedDefinition || normalizeSchemaNode(schemaDefinition));
   const valid = validate(data);
   
   if (!valid) {
@@ -189,6 +241,7 @@ async function validateContent(type, data) {
  */
 function clearCache() {
   schemaCache = null;
+  normalizedSchemaCache = null;
   ajvInstance = null;
 }
 
@@ -197,6 +250,7 @@ module.exports = {
   validateUniqueness,
   getUniqueFields,
   loadSchema,
-  clearCache
+  clearCache,
+  getNormalizedSchema // exported for testing if needed
 };
 
