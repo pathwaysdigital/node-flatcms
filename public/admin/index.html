@@ -19,14 +19,28 @@
       }
 
       #content-grid {
-        display: grid;
-        grid-template-columns: 1fr 2fr;
-        gap: 1.5rem;
+        display: block;
       }
 
       #content-list {
-        max-height: 30rem;
+        max-height: 45rem;
         overflow-y: auto;
+        margin: 0;
+        padding-left: 0;
+        list-style: none;
+      }
+
+      #content-list li {
+        border: 1px solid var(--pico-muted-border-color);
+        border-radius: var(--pico-border-radius);
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        cursor: pointer;
+      }
+
+      #content-list li.contrast {
+        border-color: var(--pico-primary);
+        box-shadow: 0 0 0 2px var(--pico-primary-border);
       }
 
       #notifications {
@@ -55,10 +69,30 @@
         color: var(--pico-danger-inverse);
       }
 
-      @media (max-width: 960px) {
-        #content-grid {
-          grid-template-columns: 1fr;
-        }
+      .hidden {
+        display: none !important;
+      }
+
+      #credentials-panel.collapsed {
+        padding: 1rem;
+      }
+
+      #credentials-panel.collapsed .grid,
+      #credentials-panel.collapsed #credentials-body {
+        display: none;
+      }
+
+      #credentials-summary {
+        margin-top: 0.5rem;
+      }
+
+      dialog {
+        max-width: 640px;
+        width: 90%;
+      }
+
+      dialog article {
+        margin: 0;
       }
     </style>
     <script type="module" src="/admin/admin.js" defer></script>
@@ -71,104 +105,117 @@
         <p>Manage flat-file content using your existing schema.</p>
       </header>
 
-      <section class="panel" aria-label="Authentication">
+      <section class="panel" id="credentials-panel" aria-label="Authentication">
         <h3>API Access</h3>
-        <div class="grid">
-          <label>
-            API Key
-            <input type="password" id="api-key-input" placeholder="Enter API key" autocomplete="off" />
-          </label>
-          <label>
-            Base URL
-            <input type="url" id="base-url-input" placeholder="http://localhost:3000" />
-          </label>
+        <div id="credentials-body">
+          <div class="grid">
+            <label>
+              API Key
+              <input type="password" id="api-key-input" placeholder="Enter API key" autocomplete="off" />
+            </label>
+            <label>
+              Base URL
+              <input type="url" id="base-url-input" placeholder="http://localhost:3000" />
+            </label>
+          </div>
+          <div class="grid">
+            <button id="save-credentials-button">Save Credentials</button>
+            <button id="test-connection-button" class="secondary outline">Test Connection</button>
+          </div>
         </div>
-        <div class="grid">
-          <button id="save-credentials-button">Save Credentials</button>
-          <button id="test-connection-button" class="secondary outline">Test Connection</button>
+        <div id="credentials-summary" class="hidden">
+          <p>Credentials saved locally.</p>
+          <button id="edit-credentials-button" class="secondary outline">Edit credentials</button>
         </div>
         <small id="auth-status-text">Credentials are stored locally in your browser only.</small>
       </section>
 
-      <section class="panel" aria-label="Content selector">
-        <h3>Content Types</h3>
-        <div class="grid">
-          <label>
-            Type
-            <select id="content-type-select" aria-label="Content type"></select>
-          </label>
-          <label>
-            Search
-            <input type="search" id="search-input" placeholder="Search content" />
-          </label>
-          <label>
-            Status
-            <select id="status-filter">
-              <option value="">Any status</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
-          </label>
-        </div>
-        <div>
-          <button id="refresh-list-button" class="secondary">Refresh list</button>
-        </div>
-      </section>
-
-      <section id="content-grid">
-        <div class="panel" aria-label="Content list">
-          <div class="grid" style="align-items: center;">
-            <h3 style="margin: 0;">Entries</h3>
-            <div style="text-align: right;">
-              <button id="new-entry-button" class="contrast">New entry</button>
-            </div>
+      <div id="admin-main" class="hidden">
+        <section class="panel" aria-label="Content selector">
+          <h3>Content Types</h3>
+          <div class="grid">
+            <label>
+              Type
+              <select id="content-type-select" aria-label="Content type"></select>
+            </label>
+            <label>
+              Search
+              <input type="search" id="search-input" placeholder="Search content" />
+            </label>
+            <label>
+              Status
+              <select id="status-filter">
+                <option value="">Any status</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
           </div>
-          <ul id="content-list"></ul>
-          <nav aria-label="Pagination" class="grid">
-            <button id="prev-page-button" class="secondary outline">Previous</button>
-            <span id="pagination-info" style="text-align: center;">0 items</span>
-            <button id="next-page-button" class="secondary outline">Next</button>
-          </nav>
-        </div>
+          <div>
+            <button id="refresh-list-button" class="secondary">Refresh list</button>
+          </div>
+        </section>
 
-        <div class="panel" aria-label="Editor">
-          <h3 id="editor-title">Create entry</h3>
-          <form id="content-form">
-            <div id="dynamic-fields"></div>
-            <details>
-              <summary>Metadata</summary>
-              <div class="grid">
-                <label>
-                  ID
-                  <input type="text" id="field-id" name="id" readonly />
-                </label>
-                <label>
-                  Status
-                  <select id="field-status" name="status">
-                    <option value="draft">draft</option>
-                    <option value="published">published</option>
-                    <option value="archived">archived</option>
-                  </select>
-                </label>
-                <label>
-                  Created At
-                  <input type="text" id="field-createdAt" name="createdAt" readonly />
-                </label>
-                <label>
-                  Updated At
-                  <input type="text" id="field-updatedAt" name="updatedAt" readonly />
-                </label>
+        <section id="content-grid">
+          <div class="panel" aria-label="Content list">
+            <div class="grid" style="align-items: center;">
+              <h3 style="margin: 0;">Entries</h3>
+              <div style="text-align: right;">
+                <button id="new-entry-button" class="contrast">New entry</button>
               </div>
-            </details>
-            <div class="grid">
-              <button type="submit" id="save-entry-button">Save</button>
-              <button type="button" id="delete-entry-button" class="secondary outline">Delete</button>
             </div>
-          </form>
-        </div>
-      </section>
+            <ul id="content-list"></ul>
+            <nav aria-label="Pagination" class="grid">
+              <button id="prev-page-button" class="secondary outline">Previous</button>
+              <span id="pagination-info" style="text-align: center;">0 items</span>
+              <button id="next-page-button" class="secondary outline">Next</button>
+            </nav>
+          </div>
+        </section>
+      </div>
     </main>
+
+    <dialog id="editor-dialog">
+      <article>
+        <header>
+          <h3 id="editor-title">Create entry</h3>
+          <button type="button" id="close-dialog-button" class="secondary outline">Close</button>
+        </header>
+        <form id="content-form">
+          <div id="dynamic-fields"></div>
+          <details>
+            <summary>Metadata</summary>
+            <div class="grid">
+              <label>
+                ID
+                <input type="text" id="field-id" name="id" readonly />
+              </label>
+              <label>
+                Status
+                <select id="field-status" name="status">
+                  <option value="draft">draft</option>
+                  <option value="published">published</option>
+                  <option value="archived">archived</option>
+                </select>
+              </label>
+              <label>
+                Created At
+                <input type="text" id="field-createdAt" name="createdAt" readonly />
+              </label>
+              <label>
+                Updated At
+                <input type="text" id="field-updatedAt" name="updatedAt" readonly />
+              </label>
+            </div>
+          </details>
+          <div class="grid">
+            <button type="submit" id="save-entry-button">Save</button>
+            <button type="button" id="delete-entry-button" class="secondary outline">Delete</button>
+          </div>
+        </form>
+      </article>
+    </dialog>
   </body>
 </html>
 

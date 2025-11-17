@@ -16,7 +16,8 @@ const state = {
     apiKey: ''
   },
   currentItem: null,
-  searchDebounce: null
+  searchDebounce: null,
+  editingCredentials: false
 };
 
 function $(selector) {
@@ -50,7 +51,14 @@ const elements = {
   fieldId: $('#field-id'),
   fieldStatus: $('#field-status'),
   fieldCreatedAt: $('#field-createdAt'),
-  fieldUpdatedAt: $('#field-updatedAt')
+  fieldUpdatedAt: $('#field-updatedAt'),
+  adminMain: $('#admin-main'),
+  credentialsPanel: $('#credentials-panel'),
+  credentialsBody: $('#credentials-body'),
+  credentialsSummary: $('#credentials-summary'),
+  editCredentialsButton: $('#edit-credentials-button'),
+  editorDialog: $('#editor-dialog'),
+  closeDialogButton: $('#close-dialog-button')
 };
 
 function showToast(message, variant = 'success', timeout = 4000) {
@@ -80,15 +88,34 @@ function loadCredentials() {
 
   elements.apiKeyInput.value = state.credentials.apiKey;
   elements.baseUrlInput.value = state.credentials.baseUrl;
+  state.editingCredentials = !state.credentials.apiKey;
+  updateVisibility();
 }
 
 function saveCredentials() {
   state.credentials.apiKey = elements.apiKeyInput.value.trim();
   state.credentials.baseUrl = elements.baseUrlInput.value.trim() || window.location.origin;
   localStorage.setItem('flatcms-admin-credentials', JSON.stringify(state.credentials));
+  const hasApiKey = Boolean(state.credentials.apiKey);
+  if (!hasApiKey) {
+    state.editingCredentials = true;
+    updateVisibility();
+    showToast('Enter an API key to unlock the admin.', 'error');
+    return;
+  }
   elements.authStatusText.textContent = 'Credentials saved locally.';
   showToast('Credentials saved');
+  state.editingCredentials = false;
+  updateVisibility();
   loadSchema();
+}
+
+function updateVisibility() {
+  const hasApiKey = Boolean(state.credentials.apiKey);
+  elements.adminMain.classList.toggle('hidden', !hasApiKey);
+  elements.credentialsPanel.classList.toggle('collapsed', hasApiKey && !state.editingCredentials);
+  elements.credentialsBody.classList.toggle('hidden', hasApiKey && !state.editingCredentials);
+  elements.credentialsSummary.classList.toggle('hidden', !(hasApiKey && !state.editingCredentials));
 }
 
 async function fetchJson(path, options = {}) {
@@ -138,6 +165,9 @@ async function fetchJson(path, options = {}) {
 }
 
 async function loadSchema() {
+  if (!state.credentials.apiKey) {
+    return;
+  }
   try {
     const data = await fetchJson('/api/schema');
     state.schemaTypes = data.types || [];
@@ -179,6 +209,18 @@ function selectType(typeName) {
   renderDynamicFields();
   renderEditor(null);
   loadContentList();
+}
+
+function ensureEditorDialogOpen() {
+  if (!elements.editorDialog.open) {
+    elements.editorDialog.showModal();
+  }
+}
+
+function closeEditorDialog() {
+  if (elements.editorDialog.open) {
+    elements.editorDialog.close();
+  }
 }
 
 function renderDynamicFields() {
@@ -332,6 +374,7 @@ async function loadItemDetails(id) {
     state.currentItem = item;
     renderEditor(item);
     highlightSelectedItem(id);
+    ensureEditorDialogOpen();
   } catch (error) {
     console.error('Failed to load entry', error);
     showToast(`Failed to load entry: ${error.message}`, 'error');
@@ -459,6 +502,8 @@ async function handleFormSubmit(event) {
     showToast(`Entry ${isUpdate ? 'updated' : 'created'} successfully`);
     renderEditor(result);
     await loadContentList();
+    highlightSelectedItem(result.id);
+    closeEditorDialog();
   } catch (error) {
     console.error('Failed to save entry', error);
     const details = Array.isArray(error.details)
@@ -481,6 +526,8 @@ async function handleDelete() {
     state.currentItem = null;
     renderEditor(null);
     await loadContentList();
+    highlightSelectedItem(null);
+    closeEditorDialog();
   } catch (error) {
     console.error('Failed to delete entry', error);
     showToast(`Delete failed: ${error.message}`, 'error');
@@ -515,6 +562,13 @@ function handleNextPage() {
 
 function registerEventListeners() {
   elements.saveCredentialsButton.addEventListener('click', saveCredentials);
+  elements.editCredentialsButton.addEventListener('click', () => {
+    state.editingCredentials = true;
+    updateVisibility();
+  });
+  elements.closeDialogButton.addEventListener('click', () => {
+    closeEditorDialog();
+  });
   elements.testConnectionButton.addEventListener('click', async () => {
     const baseUrl = elements.baseUrlInput.value.trim() || window.location.origin;
     try {
@@ -541,6 +595,7 @@ function registerEventListeners() {
     state.currentItem = null;
     renderEditor(null);
     highlightSelectedItem(null);
+    ensureEditorDialogOpen();
   });
 
   elements.searchInput.addEventListener('input', handleSearchInput);
@@ -555,6 +610,7 @@ function registerEventListeners() {
 function init() {
   loadCredentials();
   registerEventListeners();
+  updateVisibility();
   if (state.credentials.apiKey) {
     loadSchema();
   }
