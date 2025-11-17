@@ -1,8 +1,10 @@
 const express = require('express');
+const path = require('path');
 const config = require('./config');
 const authMiddleware = require('./middleware/auth');
 const contentRoutes = require('./routes/content');
 const mediaRoutes = require('./routes/media');
+const schemaRoutes = require('./routes/schema');
 
 const app = express();
 
@@ -28,9 +30,24 @@ app.use('/api', (req, res, next) => {
   authMiddleware(req, res, next);
 });
 
+// Serve static assets (admin UI and future public assets)
+const publicDir = path.join(process.cwd(), 'public');
+app.use(express.static(publicDir));
+
 // Routes
 app.use('/api/content', contentRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/schema', schemaRoutes);
+
+// Admin UI entry point
+app.get('/admin', (req, res, next) => {
+  const adminPath = path.join(publicDir, 'admin', 'index.html');
+  res.sendFile(adminPath, err => {
+    if (err) {
+      next(err);
+    }
+  });
+});
 
 // Health check endpoint (no auth required)
 app.get('/health', (req, res) => {

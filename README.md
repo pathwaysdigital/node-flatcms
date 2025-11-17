@@ -17,6 +17,7 @@ A simple headless flat file CMS powered by JSON and JavaScript. Perfect for powe
 - **API Key Authentication**: Simple API key-based authentication
 - **Public GET Option**: Optional public read access for GET endpoints
 - **Zero Database**: No database required - just files and configuration
+- **Browser Admin UI**: PicoCSS-powered UI for managing entries without Postman
 
 ## Installation
 
@@ -104,6 +105,17 @@ const { startServer } = require('flatcms');
 startServer();
 ```
 
+### 4. Use the Admin UI
+
+Once the server is running, visit `http://localhost:3000/admin` to open the lightweight admin console. Enter your API key and the FlatCMS base URL (defaults to the current origin), click **Save Credentials**, and the UI will load all content types defined in `schema.json`. From there you can:
+
+- Browse entries with search, status filters, and pagination
+- Create, edit, and delete content for any schema type
+- Automatically render form controls based on the schema (enums, arrays, booleans, etc.)
+- View metadata fields such as ID, status, created/updated timestamps
+
+Credentials are stored only in your browser's `localStorage`. API calls are still protected by the standard API key mechanism (unless you explicitly enable public GET access).
+
 ## Configuration
 
 Environment variables:
@@ -116,6 +128,14 @@ Environment variables:
 - `MEDIA_DIR` (optional, default: `./content/media`): Directory where media files are stored
 - `MAX_FILE_SIZE` (optional, default: `10485760`): Maximum file size in bytes (10MB default)
 - `ALLOWED_MIME_TYPES` (optional): Comma-separated list of allowed MIME types (e.g., `image/jpeg,image/png,image/gif`). If not set, all types are allowed.
+- `ADMIN_UI_BASE_URL` (optional): Not required, but you can proxy `/admin` through another server if desired; by default FlatCMS serves `public/` assets directly.
+
+## Admin UI Overview
+
+- Served automatically from the `public/` directory (no build step required). `GET /admin` returns the PicoCSS dashboard, and all static assets live under `/public/admin`.
+- The dashboard consumes a new helper endpoint, `GET /api/schema`, which exposes the parsed `schema.json` plus metadata about each content type (required fields, unique fields, etc.).
+- CRUD actions use the existing REST endpoints; the UI simply orchestrates them. You still get schema validation, uniqueness enforcement, versioning, and everything else provided by the API.
+- The dashboard is intentionally simple—pure HTML/JS/CSS—so you can customize it or embed it elsewhere if needed. Feel free to drop additional static assets into `public/` and serve them alongside the admin.
 
 ## Content Storage
 
@@ -145,6 +165,10 @@ Each content file automatically includes:
 - `publishedAt`: ISO timestamp when status was set to "published" (if applicable)
 
 ## API Endpoints
+
+### Schema
+
+- `GET /api/schema`: Returns the full `schema.json` plus derived metadata (list of content types, required fields, unique fields, etc.). Used by the admin UI but also handy for tooling/automation.
 
 ### Authentication
 
@@ -606,6 +630,13 @@ app.listen(3000, () => {
   console.log('Custom server running');
 });
 ```
+
+## Testing the Admin UI
+
+1. Start FlatCMS locally (`npm start` or `npx flatcms`) with a valid `.env` file that includes `API_KEY`, `CONTENT_DIR`, and `SCHEMA_FILE`.
+2. Visit `http://localhost:3000/admin`, enter the API key and base URL (defaults to the same origin), and click **Save Credentials**.
+3. Verify that the content types defined in `schema.json` appear in the selector, and that you can create/edit/delete entries end-to-end. Changes should immediately reflect in the underlying JSON files and respect schema validation as well as uniqueness rules.
+4. (Optional) Toggle `PUBLIC_GET_ENABLED=true` if you want to browse content without providing the API key—write operations still need authentication.
 
 ## License
 
