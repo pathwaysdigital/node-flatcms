@@ -31,7 +31,9 @@ app.use('/api', (req, res, next) => {
 });
 
 // Serve static assets (admin UI and future public assets)
-const publicDir = path.join(process.cwd(), 'public');
+// Use the package root rather than the caller's CWD so FlatCMS can run
+// correctly when consumed from another project.
+const publicDir = path.join(__dirname, '..', 'public');
 app.use(express.static(publicDir));
 
 // Routes
